@@ -1,0 +1,105 @@
+{
+  "format": "patchday-report-v1",
+  "database": "example.db",
+  "sqlite_version": "3.53.4",
+  "status": "passed",
+  "snapshot_only": true,
+  "rolled_back": false,
+  "baseline": {
+    "integrity": [
+      "ok"
+    ],
+    "foreign_key_violations": [],
+    "passed": true
+  },
+  "checks": {
+    "integrity": [
+      "ok"
+    ],
+    "foreign_key_violations": [],
+    "passed": true
+  },
+  "steps": [
+    {
+      "file": "001_due_dates.sql",
+      "status": "rehearsed",
+      "statements": 2,
+      "changed_rows": 0,
+      "elapsed_ms": 0.09,
+      "statement_index": 2
+    },
+    {
+      "file": "002_activity.sql",
+      "status": "rehearsed",
+      "statements": 3,
+      "changed_rows": 2,
+      "elapsed_ms": 0.07,
+      "statement_index": 3
+    }
+  ],
+  "changes": [
+    {
+      "object": "index:tasks_by_project",
+      "type": "index",
+      "name": "tasks_by_project",
+      "status": "added",
+      "before": null,
+      "after": {
+        "type": "index",
+        "name": "tasks_by_project",
+        "table": "tasks",
+        "sql": "CREATE INDEX tasks_by_project ON tasks(project_id, state)"
+      }
+    },
+    {
+      "object": "table:activity",
+      "type": "table",
+      "name": "activity",
+      "status": "added",
+      "before": null,
+      "after": {
+        "type": "table",
+        "name": "activity",
+        "table": "activity",
+        "sql": "CREATE TABLE activity (\n  id INTEGER PRIMARY KEY,\n  task_id INTEGER NOT NULL REFERENCES tasks(id),\n  previous_state TEXT NOT NULL,\n  next_state TEXT NOT NULL\n)",
+        "rows": 1
+      }
+    },
+    {
+      "object": "table:tasks",
+      "type": "table",
+      "name": "tasks",
+      "status": "changed",
+      "before": {
+        "type": "table",
+        "name": "tasks",
+        "table": "tasks",
+        "sql": "CREATE TABLE tasks (\n  id INTEGER PRIMARY KEY,\n  project_id INTEGER NOT NULL REFERENCES projects(id),\n  title TEXT NOT NULL,\n  state TEXT NOT NULL DEFAULT 'open'\n)",
+        "rows": 3
+      },
+      "after": {
+        "type": "table",
+        "name": "tasks",
+        "table": "tasks",
+        "sql": "CREATE TABLE tasks (\n  id INTEGER PRIMARY KEY,\n  project_id INTEGER NOT NULL REFERENCES projects(id),\n  title TEXT NOT NULL,\n  state TEXT NOT NULL DEFAULT 'open'\n, due_date TEXT)",
+        "rows": 3
+      }
+    },
+    {
+      "object": "trigger:record_task_state",
+      "type": "trigger",
+      "name": "record_task_state",
+      "status": "added",
+      "before": null,
+      "after": {
+        "type": "trigger",
+        "name": "record_task_state",
+        "table": "tasks",
+        "sql": "CREATE TRIGGER record_task_state AFTER UPDATE OF state ON tasks\nWHEN OLD.state <> NEW.state\nBEGIN\n  INSERT INTO activity(task_id, previous_state, next_state)\n  VALUES (NEW.id, OLD.state, NEW.state);\nEND"
+      }
+    }
+  ],
+  "risks": [],
+  "error": null,
+  "elapsed_ms": 16.96
+}
