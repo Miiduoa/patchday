@@ -1,0 +1,80 @@
+{
+  "format": "patchday-report-v1",
+  "database": "Chinook_Sqlite.sqlite",
+  "sqlite_version": "3.53.4",
+  "status": "review",
+  "snapshot_only": true,
+  "rolled_back": false,
+  "baseline": {
+    "integrity": [
+      "ok"
+    ],
+    "foreign_key_violations": [],
+    "passed": true
+  },
+  "checks": {
+    "integrity": [
+      "ok"
+    ],
+    "foreign_key_violations": [],
+    "passed": true
+  },
+  "steps": [
+    {
+      "file": "004_drop_composer.sql",
+      "status": "rehearsed",
+      "statements": 1,
+      "changed_rows": 0,
+      "elapsed_ms": 0.79,
+      "statement_index": 1
+    }
+  ],
+  "changes": [
+    {
+      "object": "table:Track",
+      "type": "table",
+      "name": "Track",
+      "status": "changed",
+      "before": {
+        "type": "table",
+        "name": "Track",
+        "table": "Track",
+        "sql": "CREATE TABLE [Track]\n(\n    [TrackId] INTEGER  NOT NULL,\n    [Name] NVARCHAR(200)  NOT NULL,\n    [AlbumId] INTEGER,\n    [MediaTypeId] INTEGER  NOT NULL,\n    [GenreId] INTEGER,\n    [Composer] NVARCHAR(220),\n    [Milliseconds] INTEGER  NOT NULL,\n    [Bytes] INTEGER,\n    [UnitPrice] NUMERIC(10,2)  NOT NULL,\n    CONSTRAINT [PK_Track] PRIMARY KEY  ([TrackId]),\n    FOREIGN KEY ([AlbumId]) REFERENCES [Album] ([AlbumId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION,\n    FOREIGN KEY ([GenreId]) REFERENCES [Genre] ([GenreId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION,\n    FOREIGN KEY ([MediaTypeId]) REFERENCES [MediaType] ([MediaTypeId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION\n)",
+        "rows": 3503,
+        "columns": [
+          "TrackId",
+          "Name",
+          "AlbumId",
+          "MediaTypeId",
+          "GenreId",
+          "Composer",
+          "Milliseconds",
+          "Bytes",
+          "UnitPrice"
+        ]
+      },
+      "after": {
+        "type": "table",
+        "name": "Track",
+        "table": "Track",
+        "sql": "CREATE TABLE [Track]\n(\n    [TrackId] INTEGER  NOT NULL,\n    [Name] NVARCHAR(200)  NOT NULL,\n    [AlbumId] INTEGER,\n    [MediaTypeId] INTEGER  NOT NULL,\n    [GenreId] INTEGER,\n    [Milliseconds] INTEGER  NOT NULL,\n    [Bytes] INTEGER,\n    [UnitPrice] NUMERIC(10,2)  NOT NULL,\n    CONSTRAINT [PK_Track] PRIMARY KEY  ([TrackId]),\n    FOREIGN KEY ([AlbumId]) REFERENCES [Album] ([AlbumId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION,\n    FOREIGN KEY ([GenreId]) REFERENCES [Genre] ([GenreId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION,\n    FOREIGN KEY ([MediaTypeId]) REFERENCES [MediaType] ([MediaTypeId]) \n\t\tON DELETE NO ACTION ON UPDATE NO ACTION\n)",
+        "rows": 3503,
+        "columns": [
+          "TrackId",
+          "Name",
+          "AlbumId",
+          "MediaTypeId",
+          "GenreId",
+          "Milliseconds",
+          "Bytes",
+          "UnitPrice"
+        ]
+      }
+    }
+  ],
+  "risks": [
+    "Table Track no longer has columns \"Composer\" (removed or renamed; 3503 rows before migration)."
+  ],
+  "error": null,
+  "elapsed_ms": 13.2
+}

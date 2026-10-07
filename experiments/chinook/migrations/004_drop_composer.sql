@@ -1,0 +1,1 @@
+ALTER TABLE Track DROP COLUMN Composer;

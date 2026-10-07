@@ -57,6 +57,57 @@ class RehearsalTests(unittest.TestCase):
         self.assertEqual(r['status'], 'review')
         self.assertIn('removed', r['risks'][0])
 
+    def test_dropped_populated_column_requires_review_without_row_loss(self):
+        r = self.run_sql('ALTER TABLE items DROP COLUMN name;')
+        self.assertEqual(r['status'], 'review')
+        change = r['changes'][0]
+        self.assertEqual(change['before']['rows'], change['after']['rows'])
+        self.assertEqual(change['before']['columns'], ['id', 'name'])
+        self.assertEqual(change['after']['columns'], ['id'])
+        self.assertIn('"name"', r['risks'][0])
+        self.assertIn('removed or renamed', r['risks'][0])
+        self.assertIn('&quot;name&quot;', html_report(r))
+
+    def test_rebuilt_table_with_same_rows_still_reports_missing_column(self):
+        r = self.run_sql('''CREATE TABLE replacement(id INTEGER PRIMARY KEY);
+INSERT INTO replacement SELECT id FROM items;
+DROP TABLE items;
+ALTER TABLE replacement RENAME TO items;''')
+        self.assertEqual(r['status'], 'review')
+        self.assertEqual(r['changes'][0]['after']['rows'], 2)
+        self.assertIn('"name"', r['risks'][0])
+
+    def test_column_rename_conservatively_requires_review(self):
+        r = self.run_sql('ALTER TABLE items RENAME COLUMN name TO title;')
+        self.assertEqual(r['status'], 'review')
+        self.assertIn('removed or renamed', r['risks'][0])
+
+    def test_case_only_column_rename_is_not_loss(self):
+        r = self.run_sql('ALTER TABLE items RENAME COLUMN name TO NAME;')
+        self.assertEqual(r['status'], 'passed')
+        self.assertEqual(r['risks'], [])
+
+    def test_generated_and_quoted_columns_are_inspected(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            db.executescript('''CREATE TABLE "odd""table" (
+                "source" TEXT, "derived""value" TEXT GENERATED ALWAYS AS (upper(source)) VIRTUAL);
+                INSERT INTO "odd""table"(source) VALUES ('one');''')
+        self.before = self.digest()
+        r = self.run_sql('ALTER TABLE "odd""table" DROP COLUMN "derived""value";')
+        self.assertEqual(r['status'], 'review')
+        change = r['changes'][0]
+        self.assertEqual(change['before']['columns'], ['source', 'derived"value'])
+        self.assertEqual(change['after']['columns'], ['source'])
+        self.assertIn('"derived""value"', r['risks'][0])
+
+    def test_unicode_column_names_are_not_casefolded(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            db.executescript('CREATE TABLE unicode_names("ß", "ss"); INSERT INTO unicode_names VALUES(1,2);')
+        self.before = self.digest()
+        r = self.run_sql('ALTER TABLE unicode_names DROP COLUMN "ß";')
+        self.assertEqual(r['status'], 'review')
+        self.assertIn('"ß"', r['risks'][0])
+
     def test_triggers_and_quoted_semicolons(self):
         r = self.run_sql("""CREATE TABLE audit(value TEXT);
 CREATE TRIGGER record AFTER UPDATE ON items BEGIN
@@ -107,9 +158,24 @@ UPDATE items SET name='new' WHERE id=1;""")
         self.assertFalse(target.exists())
 
     def test_transaction_savepoint_pragma_and_extension_denied(self):
-        for sql in ['COMMIT;', 'BEGIN;', 'SAVEPOINT x;', 'PRAGMA foreign_keys=OFF;', "SELECT load_extension('bad');"]:
+        for sql in ['COMMIT;', 'BEGIN;', 'SAVEPOINT x;', 'PRAGMA foreign_keys=OFF;',
+                    'PRAGMA ignore_check_constraints=ON;', 'PRAGMA writable_schema=ON;',
+                    "SELECT load_extension('bad');"]:
             with self.subTest(sql=sql):
                 self.assertEqual(self.run_sql(sql)['status'], 'failed')
+
+    def test_add_checked_column_can_run_sqlites_internal_quick_check(self):
+        r = self.run_sql("ALTER TABLE items ADD COLUMN state TEXT NOT NULL DEFAULT 'open' CHECK(state IN ('open','done'));")
+        self.assertEqual(r['status'], 'passed')
+        self.assertTrue(r['checks']['passed'])
+
+    def test_add_checked_column_rejects_invalid_existing_rows(self):
+        r = self.run_sql('CREATE TABLE earlier(id);',
+                         "ALTER TABLE items ADD COLUMN state TEXT DEFAULT 'invalid' CHECK(state='open');")
+        self.assertEqual(r['status'], 'failed')
+        self.assertIn('CHECK constraint failed', r['error'])
+        self.assertTrue(r['rolled_back'])
+        self.assertEqual([s['status'] for s in r['steps']], ['rolled_back', 'failed'])
 
     def test_timeout_interrupts_recursive_query(self):
         r = self.run_sql('WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n) SELECT sum(x) FROM n;', timeout=.1)

@@ -25,6 +25,7 @@ jobs:
       - run: python examples/seed.py example.db
       - run: mkdir public
       - run: python -m patchday example.db examples/migrations/001_due_dates.sql examples/migrations/002_activity.sql --html public/index.html
+      - run: mkdir public/chinook && cp docs/cases/chinook/*.html docs/cases/chinook/*.json public/chinook/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

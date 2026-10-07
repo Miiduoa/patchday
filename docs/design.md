@@ -10,15 +10,15 @@ The snapshot represents a consistent database state. It does not predict later p
 
 Each SQL file is split at complete SQLite statements, not at every semicolon. Quoted text and multi-statement trigger bodies survive. Statements are executed individually; `executescript()` is avoided because of its transaction behavior.
 
-Patchday starts the transaction before installing the migration authorizer. The authorizer denies transaction and savepoint operations, attachment, PRAGMAs and virtual-table DDL. It is removed before tool-owned checks and commit/rollback. The full batch commits only inside the disposable connection. A failure rolls back all earlier files.
+Patchday starts the transaction before installing the migration authorizer. The authorizer denies transaction and savepoint operations, attachment, virtual-table DDL and PRAGMAs except `quick_check`. The narrow exception is read-only and necessary because SQLite invokes it internally for `ALTER TABLE ... ADD COLUMN ... CHECK(...)`. Configuration PRAGMAs such as `foreign_keys`, `ignore_check_constraints` and `writable_schema` remain denied. The authorizer is removed before tool-owned checks and commit/rollback. The full batch commits only inside the disposable connection. A failure rolls back all earlier files.
 
 Foreign keys are enabled before the transaction. `foreign_key_check` runs against the starting and final snapshots; commit also exercises deferred constraints. Some real migrations require temporarily disabling foreign keys while rebuilding tables. Those workflows are intentionally unsupported in this version.
 
 ## What a diff contains
 
-Schema objects are keyed by `(type, name)`. DDL text comes from `sqlite_schema`; table counts come from quoted identifiers. Changes include tables, indexes, views and triggers. A removed table or declining table count changes the outcome from `passed` to `review`, even when every SQL statement succeeds.
+Schema objects are keyed by `(type, name)`. DDL text comes from `sqlite_schema`; table counts come from quoted identifiers. `PRAGMA table_xinfo` supplies column names, including generated/hidden columns that `table_info` omits. Changes include tables, indexes, views and triggers. A removed table, missing column name or declining table count changes the outcome from `passed` to `review`, even when every SQL statement succeeds. The JSON format remains `patchday-report-v1`; table snapshots have an additive `columns` list, and existing fields retain their meaning.
 
-The comparison is structural plus row count, not a value-level diff. A table rename appears as removal plus addition. That deliberately requests review; the tool does not guess whether data was preserved elsewhere. Trigger writes contribute to per-step `total_changes`, so that metric is labeled row writes, not distinct affected rows.
+The comparison is structural plus row count, not a value-level diff. A table rename appears as removal plus addition. A column rename also requests review because an old name is missing; this includes generated or empty columns, so the warning says "removed or renamed", not "data destroyed". Names are compared with SQLite's ASCII-only case folding. The tool does not guess whether data was preserved elsewhere. A drop followed by recreating the same column name can still evade this final-state comparison. Trigger writes contribute to per-step `total_changes`, so that metric is labeled row writes, not distinct affected rows.
 
 ## Resource and file boundaries
 
@@ -30,4 +30,6 @@ Reports use exclusive file creation. A preflight check improves the error messag
 
 The suite checks successful DDL, failed batch rollback, row-loss outcomes, immediate/deferred constraints, trigger semicolons, quoted identifiers, preserved source hashes, WAL contents, ATTACH/VACUUM escape attempts, blocked transaction controls, timeouts, report escaping and exit codes.
 
-Missing evidence: production lock behavior, very large database performance, value-level equivalence, and SQLite extensions outside the standard runtime. Passing tests do not substitute for those measurements.
+The [Chinook experiment](cases/chinook/README.md) adds five cases on a pinned external public sample and records a reproducible value-erasure counterexample. Missing evidence: production lock behavior, very large database performance, value-level equivalence, and SQLite extensions outside the standard runtime. Passing tests do not substitute for those measurements.
+
+References: [SQLite ADD COLUMN constraint checks](https://www.sqlite.org/lang_altertable.html#alter_table_add_column), [table_xinfo](https://www.sqlite.org/pragma.html#pragma_table_xinfo), [quick_check](https://www.sqlite.org/pragma.html#pragma_quick_check).

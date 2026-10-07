@@ -1,0 +1,2 @@
+# Preserve the upstream license bytes, including its trailing spaces.
+experiments/chinook/LICENSE.chinook -text -whitespace

@@ -2,7 +2,7 @@
 
 在修改資料庫前，先把 migration 跑在拋棄式副本上，查看 schema 差異、資料筆數變化、外鍵與完整性檢查。
 
-[執行方式](../README.md) · [範例報告](https://miiduoa.github.io/patchday/) · [設計取捨](design.md)
+[執行方式](../README.md) · [範例報告](https://miiduoa.github.io/patchday/) · [設計取捨](design.md) · [Chinook 驗證紀錄](cases/chinook/README.md)
 
 ## 實際解決的問題
 
@@ -24,4 +24,8 @@ SQL 語法正確，不代表套用到現有資料時會成功。例如有資料�
 - SQLite authorizer 如何阻止 ATTACH 與自行 COMMIT？它又不是哪些威脅的防線？
 - 為什麼相同筆數不能證明資料沒有損失？
 
-目前的驗證包括 23 項測試，以及可重建的合成資料與報告。這是資料庫工具原型，沒有宣稱已在正式環境部署；記憶體副本的耗時也不能當成 production benchmark。
+目前有 31 項測試，以及可重建的合成資料與報告。新增的 [Chinook 驗證](cases/chinook/README.md) 使用官方公開樣本，固定版本與 SHA-256，跑五組情境，並在每次預演後驗證來源檔案雜湊。
+
+這次重現並修正兩個問題：刪除 Composer 欄位後，3,503 筆 Track 沒變，原本錯過了 Review；新增 CHECK 欄位時，SQLite 內部 quick_check 被工具誤擋。現在會比對欄位名稱，且僅開放唯讀 quick_check。欄位改名也會保守要求人工檢視；其他設定類 PRAGMA 仍禁止。
+
+也保留可重跑的反例：把 2,525 筆 Composer 改成 NULL，欄位與筆數不變，仍會 Passed。工具沒有比較每個儲存格的值。Chinook 是公開樣本，客戶資料為虛構、交易為產生資料；這不是正式客戶案例，記憶體耗時也不能當成 production benchmark。

@@ -38,6 +38,9 @@ def schema(db: sqlite3.Connection) -> dict:
         item = {"type": kind, "name": name, "table": table, "sql": sql}
         if kind == "table":
             item["rows"] = db.execute(f"SELECT count(*) FROM {quote(name)}").fetchone()[0]
+            # table_info omits generated/hidden columns; DDL text is not safe to
+            # parse for identifiers (quotes, comments and constraints vary).
+            item["columns"] = [row[1] for row in db.execute(f"PRAGMA main.table_xinfo({quote(name)})")]
         objects[f"{kind}:{name}"] = item
     return objects
 
@@ -57,9 +60,13 @@ def changes(before: dict, after: dict) -> list[dict]:
 
 def restrictions(action, arg1, arg2, _database, _trigger):
     forbidden = {sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH, sqlite3.SQLITE_TRANSACTION,
-                 sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_PRAGMA, sqlite3.SQLITE_CREATE_VTABLE,
+                 sqlite3.SQLITE_SAVEPOINT, sqlite3.SQLITE_CREATE_VTABLE,
                  sqlite3.SQLITE_DROP_VTABLE}
     if action in forbidden:
+        return sqlite3.SQLITE_DENY
+    # SQLite itself invokes quick_check while adding a CHECK-constrained column.
+    # It only reads the snapshot; all other PRAGMAs remain disallowed.
+    if action == sqlite3.SQLITE_PRAGMA and str(arg1).lower() != "quick_check":
         return sqlite3.SQLITE_DENY
     if action == sqlite3.SQLITE_FUNCTION and str(arg2).lower() in {"load_extension", "readfile", "writefile"}:
         return sqlite3.SQLITE_DENY
@@ -164,6 +171,18 @@ def rehearse(database: Path | str, migrations: list[Path | str], *, timeout: flo
                         result["risks"].append(f"Table {old['name']} removed ({old['rows']} rows in the snapshot).")
                     elif new["rows"] < old["rows"]:
                         result["risks"].append(f"Table {old['name']} has fewer rows: {old['rows']} → {new['rows']}.")
+                    if new is not None:
+                        # SQLite folds ASCII identifier case only. Do not treat
+                        # distinct Unicode names as equal via str.casefold().
+                        fold = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+                        current = {name.translate(fold) for name in new["columns"]}
+                        missing = [name for name in old["columns"] if name.translate(fold) not in current]
+                        if missing:
+                            names = ", ".join(quote(name) for name in missing)
+                            result["risks"].append(
+                                f"Table {old['name']} no longer has columns {names} "
+                                f"(removed or renamed; {old['rows']} rows before migration)."
+                            )
             if result["risks"]:
                 result["status"] = "review"
             # Commit exercises deferred constraints. This commits only the disposable copy.

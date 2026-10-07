@@ -1,0 +1,14 @@
+{
+  "project": "Chinook Database",
+  "repository": "https://github.com/lerocha/chinook-database",
+  "release": "v1.4.5",
+  "release_commit": "4a944a942426e1f3263fe539155fb7ef92b04b4a",
+  "asset": "Chinook_Sqlite.sqlite",
+  "url": "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite",
+  "sha256": "bdf635be69850bd3be09c9a2dbeef7ddfb80036bd3ef3381383cd03b61e4a61a",
+  "bytes": 1067008,
+  "license": "MIT",
+  "license_url": "https://github.com/lerocha/chinook-database/blob/4a944a942426e1f3263fe539155fb7ef92b04b4a/LICENSE.md",
+  "license_sha256": "5064d720db431474b0a0b0cef9d2b5e362b6c6f80602b35c6443b07cbc979f77",
+  "data_note": "Public sample: media metadata originates from an iTunes library; customers/employees are fictional and sales are generated. This is not production customer data."
+}
